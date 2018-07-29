@@ -55,10 +55,10 @@ executable finance-haskell
   
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions: OverloadedStrings   
-  default-extensions: OverloadedStrings FlexibleContexts  
+  default-extensions: OverloadedStrings FlexibleContexts DeriveGeneric
   
   -- Other library packages from which modules are imported.
-  build-depends:       base >=4.10 && <4.11, scotty, text
+  build-depends:       base >=4.10 && <4.11, scotty, text, aeson, mtl
   
   -- Directories containing source files.
   hs-source-dirs:      src
