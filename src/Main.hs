@@ -1,37 +1,33 @@
 module Main where
 
+import Control.Exception
 import Models.Transaction
 import System.Environment (lookupEnv)
 import Data.String (fromString)
 import Data.Text.Lazy (Text)
+import qualified Data.Text.Lazy as TL
 import Data.Monoid
 import Web.Scotty
-import Web.Scotty.Trans (ActionT)
+import qualified Web.Scotty.Trans as ST
+import Data.Typeable
+import Network.HTTP.Types.Status
 import Greeting
 
-data Except = Forbidden | ServerError | NotFound String
-  deriving (Show, Eq)
+data Except = Forbidden | ServerError | NotFound Text
+  deriving (Show, Eq, Typeable)
 
--- instance Error Except where
---   noMsg = ServerError "Something went wrong processing this request"
---   strMsg str = NotFound str
-
--- instance ScottyError Except where
---   stringError = StringEx
---   showError = fromString . show
-
--- handleEx :: Text -> ActionM ()
--- handleEx Forbidden = do
---     status status403
---     html "<h1>Forbidden :(</h1>"
--- handleEx (NotFound error) = do
---     status status404
---     html $ error
+instance ST.ScottyError Except where
+  stringError = NotFound . TL.pack
+  showError ServerError = "Something went wrong processing this request"
+  showError (NotFound t) = t
 
 getEnv :: Read a => a -> [Char] -> IO a
 getEnv defValue name = fmap
   (maybe defValue read)
   (lookupEnv name)
+
+getOr404 :: Maybe a -> ActionM a
+getOr404 v = maybe (raise "Transaction") return v
 
 transactionList :: [Transaction]
 transactionList = [
@@ -42,14 +38,15 @@ transactionList = [
 matchId :: Int -> Transaction -> Bool
 matchId id trans = tId trans == id
 
-getFirstTransaction :: [Transaction] -> Maybe Transaction
+-- getFirstTransaction :: [Transaction] -> Maybe Transaction
 getFirstTransaction [] = Nothing
 getFirstTransaction (first : _) = Just first
 
 getTransaction :: ActionM ()
 getTransaction = do
   id <- param "id"
-  json $ head $ filter (matchId id) transactionList
+  record <- getOr404 $ getFirstTransaction $ filter (matchId id) transactionList
+  json record
 
 hello :: ActionM ()
 hello = do
@@ -57,9 +54,16 @@ hello = do
   lang <- param "language"
   html $ mconcat [ "<h1>", greet name $ read lang, "</h1>" ]
 
+-- handleEx ServerError = ST.status status500
+-- handleEx (NotFound problem) = do
+--   ST.status status404
+--   html $ problem
+handleEx :: Text -> ActionM ()
+handleEx reason = ST.status status404 >> text ("Not found: " <> reason)
+
 routes :: ScottyM ()
 routes = do
-  -- defaultHandler handleEx
+  defaultHandler handleEx
 
   get "/transactions/:id" getTransaction
 
