@@ -13,10 +13,12 @@ import Data.Typeable
 import Network.HTTP.Types.Status
 import Greeting
 
-data Except = Forbidden | ServerError | NotFound Text
+data WhateverError = Forbidden | ServerError | NotFound Text
   deriving (Show, Eq, Typeable)
 
-instance ST.ScottyError Except where
+-- instance Exception WhateverError
+
+instance ST.ScottyError WhateverError where
   stringError = NotFound . TL.pack
   showError ServerError = "Something went wrong processing this request"
   showError (NotFound t) = t
@@ -38,7 +40,7 @@ transactionList = [
 matchId :: Int -> Transaction -> Bool
 matchId id trans = tId trans == id
 
--- getFirstTransaction :: [Transaction] -> Maybe Transaction
+getFirstTransaction :: [Transaction] -> Maybe Transaction
 getFirstTransaction [] = Nothing
 getFirstTransaction (first : _) = Just first
 
@@ -55,11 +57,11 @@ hello = do
   html $ mconcat [ "<h1>", greet name $ read lang, "</h1>" ]
 
 -- handleEx ServerError = ST.status status500
+handleEx :: Text -> ActionM ()
+handleEx reason = ST.status status404 >> text ("Not found: " <> reason)
 -- handleEx (NotFound problem) = do
 --   ST.status status404
 --   html $ problem
-handleEx :: Text -> ActionM ()
-handleEx reason = ST.status status404 >> text ("Not found: " <> reason)
 
 routes :: ScottyM ()
 routes = do
@@ -67,10 +69,9 @@ routes = do
 
   get "/transactions/:id" getTransaction
 
-  get "/:language/:name" hello
+  get "/transactions" $ json transactionList
 
-  get "/transactions" $ do
-    json transactionList
+  get "/:language/:name" hello
 
   notFound $ html "Not found"
 
